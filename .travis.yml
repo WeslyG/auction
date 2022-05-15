@@ -9,7 +9,7 @@ before_script:
   - docker login -u "${REGISTRY_USER}" -p "${REGISTRY_PASS}" "https://nexus.weslyg.ru"
 
 script:
-  - docker build -t nexus.weslyg.ru/auction:latest .
+  - docker build -t nexus.weslyg.ru/auction:latest ./server/src/Dockerfile
   - docker tag nexus.weslyg.ru/auction:latest nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
   - docker push nexus.weslyg.ru/auction:latest
   - docker push nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
