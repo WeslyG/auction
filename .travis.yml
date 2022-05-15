@@ -6,13 +6,13 @@ arch:
   - arm64
 
 before_script:
-  - docker login -u "${REGISTRY_USER}" -p "${REGISTRY_PASS}" "https://nexus.weslyg.ru"
+  - docker login -u "${REGISTRY_USER}" -p "${REGISTRY_PASS}" "https://registry.weslyg.ru"
 
 script:
-  - docker build -t nexus.weslyg.ru/auction:latest ./server/src/Dockerfile
-  - docker tag nexus.weslyg.ru/auction:latest nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
-  - docker push nexus.weslyg.ru/auction:latest
-  - docker push nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
+  - docker build -t registry.weslyg.ru/auction:latest ./server/src/Dockerfile
+  - docker tag registry.weslyg.ru/auction:latest registry.weslyg.ru/auction:"${TRAVIS_BUILD_NUMBER}"
+  - docker push registry.weslyg.ru/auction:latest
+  - docker push registry.weslyg.ru/auction:"${TRAVIS_BUILD_NUMBER}"
 
 after_script:
-  - docker logout https://nexus.weslyg.ru
+  - docker logout https://registry.weslyg.ru
