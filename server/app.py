@@ -1,14 +1,9 @@
 
-# from re import T
 from datetime import datetime, timedelta
-# import datetime
-from flask import Flask, request, session, make_response
+from flask import Flask, request, session
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, logout_user, UserMixin,login_required
-from sqlalchemy import false
+from flask_login import LoginManager, login_user, login_required
 from werkzeug.security import  check_password_hash, generate_password_hash
-from marshmallow import Schema, fields, ValidationError
-
 
 app = Flask(__name__)
 
@@ -16,68 +11,24 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-
 app.secret_key = 'CZc4J6iUr~xhX2A%W5DD'
 
 login_manager = LoginManager(app)
 
 
+# TODO: https://pypi.org/project/flask-crontab/
+
 #####MODELS#######
 
-class User(UserMixin, db.Model):  
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80))
-    login = db.Column(db.String(150))
-    password = db.Column(db.String(150))
-
-
-class Lot(db.Model):  
-    id = db.Column(db.Integer, primary_key=True)
-    id_author = db.Column(db.Integer)
-    name = db.Column(db.String(80))
-    description = db.Column(db.Text)
-    price = db.Column(db.Integer)
-    time = db.Column(db.DateTime)
-
-
-class Queue(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    id_lot = db.Column(db.Integer)
-    id_buyer = db.Column(db.Integer)
-    date_time = db.Column(db.DateTime)
-
-
+from src.models.user import User
+from src.models.lot import Lot
+from src.models.queue import Queue
 
 #####SCHEMA########
 
-class UserSchema(Schema):
-    id = fields.Int(dump_only=True)
-    name = fields.Str()
-    login = fields.Str()
-    password = fields.Str()
-
-
-
-def must_not_be_blank(data):
-    if not data:
-        raise ValidationError("Data not provided.")
-
-
-
-class ProductSchema(Schema):
-    id = fields.Int(dump_only=True)
-    id_author = fields.Str() # UserSchema(only=('id'))
-    name = fields.Str(validate=must_not_be_blank)
-    description = fields.Str()
-    price = fields.Str(validate=must_not_be_blank)
-    date_time = fields.Str()
-
-
-class QueueSchema(Schema):
-    id_lot = fields.Str()
-    id_buyer = fields.Str()
-    data = fields.Str()
-
+from src.schema.user import UserSchema
+from src.schema.product import ProductSchema
+from src.schema.queue import QueueSchema
 
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
@@ -86,24 +37,16 @@ products_schema = ProductSchema(many=True)
 queue_schema = QueueSchema()
 queues_schema = QueueSchema(many=True) 
 
-
-
-
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.query(User).get(user_id)
     # return User.query.get(user_id)
 
-
-
 ######API###########
 
-@app.route("/", methods =['GET'])
-def hey():
-    return '{ "status": "ok1" }'
+import src.routes.init
 
-
-#АВТОРИЗАЦИЯ 
+#АВТОРИЗАЦИЯ
 @app.route("/login", methods =['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -187,8 +130,6 @@ def get_my_lots():
     result = products_schema.dump(lots, many=True)
     return {'lots': result}
 
-       
-
 
 ##ПОЛУЧЕНИЕ ВСЕХ ЛОТОВ ДРУГИХ ЮЗЕРОВ 
 @app.route('/get_lots', methods=['GET', 'POST'])
@@ -199,8 +140,6 @@ def get_lots():
     result = products_schema.dump(lots, many=True)
     return {'lots': result}
 
-
-
 #ПОЛУЧЕНИЕ ЛОТОВ КОТОРЫЕ ХОЧЕТ ПРЕОБРЕСТИ ЮЗЕР 
 @app.route('/want_buy', methods =['GET', 'POST'])
 @login_required
@@ -209,7 +148,6 @@ def want_buy():
     lots = db.session.query(Queue).filter(Queue.id_buyer == id_user)
     result = queues_schema.dump(lots, many=True)
     return {'lots': result}
-   
 
 
 #ВСТАТЬ В ОЧЕРЕДЬ ЛОТА
@@ -247,10 +185,3 @@ def buy_lot(id_lot):
     #         return 'Лот продан'
     #     else:
     #         return 'Лот еще открыт'
-                
-
-
-
-
-if __name__ == "__main__":
-    app.run(debug=True)

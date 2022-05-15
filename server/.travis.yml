@@ -1,0 +1,18 @@
+sudo: required
+language: python
+services:
+  - docker
+arch:
+  - amd64
+
+before_script:
+  - docker login -u "${REGISTRY_USER}" -p "${REGISTRY_PASS}" "https://nexus.weslyg.ru"
+
+script:
+  - docker build -t nexus.weslyg.ru/auction:latest .
+  - docker tag nexus.weslyg.ru/auction:latest nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
+  - docker push nexus.weslyg.ru/auction:latest
+  - docker push nexus.weslyg.ru/auction:{TRAVIS_BUILD_NUMBER}
+
+after_script:
+  - docker logout https://nexus.weslyg.ru
