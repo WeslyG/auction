@@ -3,7 +3,7 @@ language: python
 services:
   - docker
 arch:
-  - amd64
+  - arm64
 
 before_script:
   - docker login -u "${REGISTRY_USER}" -p "${REGISTRY_PASS}" "https://nexus.weslyg.ru"
