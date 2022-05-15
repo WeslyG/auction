@@ -1,12 +1,9 @@
-.PHONY: deps test
+.PHONY: deps run dev_run
 
 deps:
 	pip install -r req.txt
 
-init_db: deps
-	python init_db.py
-
-run: init_db
+run: deps
 	flask run
 
 dev_run:

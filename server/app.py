@@ -1,9 +1,10 @@
 
 from datetime import datetime, timedelta
-from flask import Flask, request, session
+from flask import Flask, jsonify, request, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required
 from werkzeug.security import  check_password_hash, generate_password_hash
+import json
 
 app = Flask(__name__)
 
@@ -27,13 +28,13 @@ from src.models.queue import Queue
 #####SCHEMA########
 
 from src.schema.user import UserSchema
-from src.schema.product import ProductSchema
+from src.schema.lot import LotSchema
 from src.schema.queue import QueueSchema
 
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
-product_schema = ProductSchema()
-products_schema = ProductSchema(many=True)
+lot_schema = LotSchema()
+lots_schema = LotSchema(many=True)
 queue_schema = QueueSchema()
 queues_schema = QueueSchema(many=True) 
 
@@ -47,26 +48,20 @@ def load_user(user_id):
 import src.routes.init
 
 #АВТОРИЗАЦИЯ
-@app.route("/login", methods =['GET', 'POST'])
+@app.route("/login", methods =['POST'])
 def login():
-    if request.method == 'POST':
-        user = db.session.query(User).filter(User.login == request.args['login']).first()
-        # id = str(user.id)
-        if user and check_password_hash(user.password, request.args['password']):  
-            # response = make_response("Setting a cookie")
-            # response.set_cookie( 'id', '2', max_age=60*60*24*365*2)
-            if login_user(user):
-                return 'Ok'
-            # response = make_response('')
-            # response.set_cookie('id', id, 60*60*24*15)
-            return 'ОК' #, response
-
-
-        # else:
-        #     print(session[id])
-        #     return 'неверный логин или пороль' #  users_schema.dump(User.query.all())
-
-
+    new_user_data = json.loads(request.data)
+    user = db.session.query(User).filter(User.login == new_user_data['login']).first()
+    # id = str(user.id)
+    if user and check_password_hash(user.password, new_user_data['password']):
+        # response = make_response("Setting a cookie")
+        # response.set_cookie( 'id', '2', max_age=60*60*24*365*2)
+        if login_user(user):
+            return 'Ok'
+        # response = make_response('')
+        # response.set_cookie('id', id, 60*60*24*15)
+    else:
+        return 'not ok'
 
 
 # @app.route("/logout")
@@ -76,112 +71,121 @@ def login():
 #     return redirect(somewhere)
 
 
-##РЕГИСТРАЦИЯ 
+##РЕГИСТРАЦИЯ
 @app.route("/register", methods=['GET', 'POST'])
 def register():
+    req_fields = ["name", "password", "login"]
     if request.method == 'POST':
-        if request.args['password'] == request.args['password2']:
-            hash = generate_password_hash(request.args['password'])
-            new_user = User(name=request.args['name'], login=request.args['login'], password=hash)
-            db.session.add(new_user)
-            db.session.commit()
-            return 'OK'
-        else:
-            return 'нет данных'
+        new_user_data = json.loads(request.data)
+        for key in new_user_data.keys():
+            if key not in req_fields:
+                resp = { "message": f"{key} is required"}
+                return jsonify(resp), 403
+        hash = generate_password_hash(new_user_data['password'])
+        new_user = User(name=new_user_data['name'], login=new_user_data['login'], password=hash)
+        db.session.add(new_user)
+        db.session.commit()
+        return "", 201
     else:
         user = User.query.all()
         result =  users_schema.dump(user, many=True)
         return {'users': result}
-    
-
-
 
 ##СОЗДАНИЕ ЛОТА
-@app.route('/create_lot', methods=['GET', 'POST'])
+@app.route('/lot', methods=['GET'])
+@login_required
+def get_all_lots():
+    lot = Lot.query.all()
+    return jsonify(lots_schema.dump(lot, many=True))
+
+@app.route('/lot', methods=['POST'])
 @login_required
 def create_lot():
-    if request.method == 'POST':
-        id_auth = int(session['_user_id'])
-        print(id_auth)
-        name_lot = request.args['name']
-        description_lot = request.args['description']
-        price_lot = request.args['price']
-        new_lot = Lot(id_author=id_auth, name=name_lot, description=description_lot, price=price_lot, time=datetime(1,1,1))
-        db.session.add(new_lot)
-        db.session.commit()
-        return 'OK'
-    else:
-        # current_user.is_authenticated
-        # result = current_user.id()
-        # result = User.get_id()
-        lot = Lot.query.all()
-        result =  products_schema.dump(lot, many=True)
-        return {'lots': result}
-
-
+    body = json.loads(request.data)
+    id_user = int(session['_user_id'])
+    new_lot = Lot(id_author=id_user, name=body['name'], description=body['description'], price=body['price'])
+    db.session.add(new_lot)
+    db.session.commit()
+    return lot_schema.dump(new_lot)
 
 
 ##ПОЛУЧЕНИЕ ЛОТОВ КОТОРЫЕ ПРОДАЕТ ЮЗЕР
-@app.route('/get_my_lots', methods=['GET', 'POST'])
+@app.route('/lot/my', methods=['GET'])
 @login_required
 def get_my_lots():
     id_user = int(session['_user_id'])
     lots = db.session.query(Lot).filter(Lot.id_author == id_user)
-    result = products_schema.dump(lots, many=True)
-    return {'lots': result}
+    return jsonify(lots_schema.dump(lots, many=True))
 
 
 ##ПОЛУЧЕНИЕ ВСЕХ ЛОТОВ ДРУГИХ ЮЗЕРОВ 
-@app.route('/get_lots', methods=['GET', 'POST'])
+@app.route('/lot/other', methods=['GET'])
 @login_required
 def get_lots():
     id_user = int(session['_user_id'])
     lots = db.session.query(Lot).filter(Lot.id_author != id_user)
-    result = products_schema.dump(lots, many=True)
-    return {'lots': result}
+    return jsonify(lots_schema.dump(lots, many=True))
 
 #ПОЛУЧЕНИЕ ЛОТОВ КОТОРЫЕ ХОЧЕТ ПРЕОБРЕСТИ ЮЗЕР 
-@app.route('/want_buy', methods =['GET', 'POST'])
+@app.route('/lot/withlist', methods =['GET'])
 @login_required
 def want_buy():
     id_user = int(session['_user_id'])
     lots = db.session.query(Queue).filter(Queue.id_buyer == id_user)
-    result = queues_schema.dump(lots, many=True)
-    return {'lots': result}
+    return jsonify(queues_schema.dump(lots, many=True))
+
+
+@app.route('/lot/<int:id_lot>', methods =['GET'])
+@login_required
+def show_one_lot(id_lot):
+    id_user = int(session['_user_id'])
+    lot = db.session.query(Lot).filter(Lot.id == id_lot)
+    print('=============')
+    print(lot.name)
+    return 'kkk'
+    # print(lot['time'])
+    # print(lot.time)
 
 
 #ВСТАТЬ В ОЧЕРЕДЬ ЛОТА
-@app.route('/buy_lot/<int:id_lot>', methods =['GET', 'POST']) ## <int:id_lot>
-# @login_required
+@app.route('/lot/<int:id_lot>', methods =['POST']) ## <int:id_lot>
+@login_required
 def buy_lot(id_lot):
-    # timer = datetime.timedelta(hours=24)
-    id_lott = 2
-    timer = timedelta(minutes=2)
     id_user = int(session['_user_id'])
-    if request.method == 'POST':
-        lots = db.session.query(Lot).filter(Lot.id == id_lott)
-        result = products_schema.dump(lots, many=True)
-        return {'lots': result}
+    now = datetime.now()
+    print(datetime.now().isoformat())
+    lot = db.session.query(Lot).filter(Lot.id == id_lot).update({ "date_time": datetime.now().isoformat() })
+    db.session.commit()
 
-    #     if lot.time == datetime(1,1,1):
-    #         lot.time = time_now
-    #         end_queue = Queue(id_lot=id_lot, id_buyer=id_user, date_time=time_now)
-    #         db.session.add(end_queue)
-    #         db.session.commit()
-    #         return 'OK'
-    #     elif request.args['increase'] > 0 and lot.time + timer < datetime.now():
-    #         lot.price = lot.price + request.args['increase']
-    #         lot.time = time_now
-    #         end_queue = Queue(id_lot=id_lot, id_buyer=id_user, date_time=time_now)
-    #         db.session.add(end_queue)
-    #         db.session.commit()
-    #         return 'OK'
-    #     else: 
-    #         winner = db.session.query(Queue).filter(Queue.id_lot == id_lot)[-1]
-    #         return 'лот пренадлежит ', winner.id_buyer
+    return jsonify(lot)
+    lot = db.session.query(Lot).filter(Lot.id == id_lot)
+    lot_obj = lot_schema.dumps(lot)
+
+
+    # if lot.time == datetime(1,1,1):
+    #     lot.time = time_now
+    #     end_queue = Queue(id_lot=id_lot, id_buyer=id_user, date_time=time_now)
+    #     db.session.add(end_queue)
+    #     db.session.commit()
+    #     return 'OK'
+    # elif request.args['increase'] > 0 and lot.time + timer < datetime.now():
+    #     lot.price = lot.price + request.args['increase']
+    #     lot.time = time_now
+    #     end_queue = Queue(id_lot=id_lot, id_buyer=id_user, date_time=time_now)
+    #     db.session.add(end_queue)
+    #     db.session.commit()
+    #     return 'OK'
+    # else: 
+    #     winner = db.session.query(Queue).filter(Queue.id_lot == id_lot)[-1]
+    #     return 'лот пренадлежит ', winner.id_buyer
 
     # else: 
     #     if lot.time + timer >= datetime.now():
     #         return 'Лот продан'
     #     else:
     #         return 'Лот еще открыт'
+
+
+if __name__ == "__main__":
+    db.create_all()
+    app.run()
