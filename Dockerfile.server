@@ -2,11 +2,11 @@ FROM python:3.9.12-slim
 
 WORKDIR /app
 
-COPY req.txt req.txt
+COPY ./server/req.txt req.txt
 
 RUN pip3 install -r req.txt
 
-COPY . .
+COPY ./server/ .
 
 RUN python init_db.py
 
